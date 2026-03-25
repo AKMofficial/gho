@@ -46,6 +46,8 @@ struct GhoApp: App {
     // MARK: - Bootstrap
 
     private func bootstrapApp() {
+        GhosttyAppController.shared.initialize()
+
         let sm = TerminalSessionManager(appState: appState)
         sessionManager = sm
 
@@ -74,6 +76,7 @@ struct GhoApp: App {
         try? persistenceService.save(state: state)
         try? persistenceService.saveSettings(appState.settings)
         fileWatcher.stopAll()
+        GhosttyAppController.shared.shutdown()
     }
 
     // MARK: - Git Integration

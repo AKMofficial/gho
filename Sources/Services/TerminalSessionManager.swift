@@ -4,7 +4,7 @@ import Foundation
 /// Manages the lifecycle of terminal sessions and their backing engines.
 ///
 /// `TerminalSessionManager` is the single source of truth for engine
-/// instances. It creates ``SwiftTermEngine`` objects, wires their delegates,
+/// instances. It creates ``GhosttyEngine`` objects, wires their delegates,
 /// starts shell processes, and tears everything down on close.
 ///
 /// Injected into the SwiftUI environment so that views can look up engines
@@ -51,7 +51,7 @@ final class TerminalSessionManager: TerminalEngineDelegate {
             pathGroupID: group.id
         )
 
-        let engine = SwiftTermEngine(terminalID: session.id)
+        let engine = GhosttyEngine(terminalID: session.id)
         engine.delegate = self
         engines[session.id] = engine
 

@@ -2,8 +2,8 @@ import SwiftUI
 
 /// Displays a single terminal pane.
 ///
-/// The pane retrieves the ``SwiftTermEngine`` for its terminal ID from the
-/// ``TerminalSessionManager`` and renders it through ``SwiftTermNSViewWrapper``.
+/// The pane retrieves the ``GhosttyEngine`` for its terminal ID from the
+/// ``TerminalSessionManager`` and renders it through ``GhosttyNSViewWrapper``.
 /// An active-pane border highlight is drawn when this terminal is focused.
 struct TerminalPaneView: View {
 
@@ -23,8 +23,8 @@ struct TerminalPaneView: View {
 
     var body: some View {
         ZStack {
-            if let engine = sessionManager.engine(for: terminalID) as? SwiftTermEngine {
-                SwiftTermNSViewWrapper(engine: engine)
+            if let engine = sessionManager.engine(for: terminalID) as? GhosttyEngine {
+                GhosttyNSViewWrapper(engine: engine)
             } else {
                 // Placeholder while the engine is being created or if lookup fails
                 Color(nsColor: terminalBackgroundNSColor)
