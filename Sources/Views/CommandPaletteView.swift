@@ -100,6 +100,17 @@ struct CommandPaletteView: View {
             icon: "folder.badge.plus",
             action: {
                 appState.isCommandPaletteVisible = false
+                let panel = NSOpenPanel()
+                panel.canChooseFiles = false
+                panel.canChooseDirectories = true
+                panel.allowsMultipleSelection = false
+                panel.begin { response in
+                    if response == .OK, let url = panel.url {
+                        let group = appState.addPathGroup(path: url)
+                        let terminal = appState.addTerminal(to: group.id, sessionManager: sessionManager)
+                        appState.focusTerminal(id: terminal.id)
+                    }
+                }
             }
         ))
 
@@ -163,16 +174,27 @@ struct CommandPaletteView: View {
                     icon: "arrow.triangle.branch",
                     action: {
                         appState.isCommandPaletteVisible = false
+                        // Focus the path group's first terminal so the sidebar branch section is relevant
+                        if let firstTerminal = group.terminals.first {
+                            appState.focusTerminal(id: firstTerminal.id)
+                        }
+                        // Ensure sidebar is visible so the user can interact with the branch picker
+                        appState.isSidebarVisible = true
                     }
                 ))
 
                 if gitState.aheadCount > 0 {
+                    let pushPath = group.path
                     commands.append(PaletteCommand(
                         title: "Push: \(group.effectiveName)",
                         subtitle: "\(gitState.aheadCount) commits ahead",
                         icon: "arrow.up.circle",
                         action: {
                             appState.isCommandPaletteVisible = false
+                            Task {
+                                let gitService = GitCLIService()
+                                try? await gitService.push(at: pushPath)
+                            }
                         }
                     ))
                 }
