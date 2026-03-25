@@ -77,7 +77,7 @@ struct PRFormView: View {
                             Text("From:")
                             Text(currentBranch)
                                 .fontWeight(.medium)
-                                .foregroundStyle(.accent)
+                                .foregroundStyle(Color.accentColor)
                         }
 
                         Picker("Into:", selection: $baseBranch) {

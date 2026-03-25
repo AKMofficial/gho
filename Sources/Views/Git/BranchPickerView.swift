@@ -31,7 +31,7 @@ struct BranchPickerView: View {
                     HStack {
                         if branch == gitState.currentBranch {
                             Image(systemName: "checkmark")
-                                .foregroundStyle(.accent)
+                                .foregroundStyle(Color.accentColor)
                                 .font(.caption)
                         }
                         Text(branch)

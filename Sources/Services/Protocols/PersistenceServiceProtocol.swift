@@ -16,7 +16,7 @@ struct PersistedState: Codable {
         let label: String
     }
 
-    struct PersistedSplitNode: Codable {
+    final class PersistedSplitNode: Codable {
         enum NodeKind: String, Codable {
             case leaf
             case split
@@ -29,6 +29,16 @@ struct PersistedState: Codable {
         let ratio: CGFloat?
         let first: PersistedSplitNode?
         let second: PersistedSplitNode?
+
+        init(kind: NodeKind, id: UUID, terminalID: UUID?, direction: String?, ratio: CGFloat?, first: PersistedSplitNode?, second: PersistedSplitNode?) {
+            self.kind = kind
+            self.id = id
+            self.terminalID = terminalID
+            self.direction = direction
+            self.ratio = ratio
+            self.first = first
+            self.second = second
+        }
     }
 
     let windowFrame: CGRect?

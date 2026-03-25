@@ -47,28 +47,54 @@ final class AppState {
         pathGroups.removeAll { $0.id == id }
     }
 
-    // NOTE: sessionManager (TerminalSessionManager) is defined in Unit 3.
-    // These methods reference it by type name. The app won't compile until all units merge.
+    @discardableResult
+    func addTerminal(to groupID: UUID, sessionManager: TerminalSessionManager) -> TerminalSession {
+        guard let group = pathGroups.first(where: { $0.id == groupID }) else {
+            fatalError("PathGroup \(groupID) not found")
+        }
+        let session = sessionManager.createSession(in: group)
+        group.terminals.append(session)
+        addLeafToSplitRoot(terminalID: session.id)
+        activeTerminalID = session.id
+        return session
+    }
 
-    // func addTerminal(to groupID: UUID, sessionManager: TerminalSessionManager) -> TerminalSession {
-    //     Creates session via sessionManager, adds to group, adds leaf to splitRoot
-    // }
-
-    // func removeTerminal(id: UUID, sessionManager: TerminalSessionManager) {
-    //     Destroys session, removes from splitRoot
-    // }
+    func removeTerminal(id: UUID, sessionManager: TerminalSessionManager) {
+        sessionManager.destroySession(id: id)
+        removeLeafFromSplitRoot(terminalID: id)
+        for group in pathGroups {
+            group.terminals.removeAll { $0.id == id }
+        }
+        if activeTerminalID == id {
+            activeTerminalID = splitRoot?.allTerminalIDs.first
+        }
+    }
 
     func focusTerminal(id: UUID) {
         activeTerminalID = id
     }
 
-    // func splitActive(direction: SplitDirection, sessionManager: TerminalSessionManager) {
-    //     Finds active leaf in splitRoot, replaces with split containing old + new terminal
-    // }
+    func splitActive(direction: SplitDirection, sessionManager: TerminalSessionManager) {
+        guard let activeID = activeTerminalID,
+              let group = activePathGroup else { return }
+        let newSession = sessionManager.createSession(in: group)
+        group.terminals.append(newSession)
+        if let root = splitRoot,
+           let leaf = root.find(terminalID: activeID) {
+            splitRoot = root.splitting(
+                leafID: leaf.id,
+                direction: direction,
+                newTerminalID: newSession.id
+            )
+        } else {
+            addLeafToSplitRoot(terminalID: newSession.id)
+        }
+        activeTerminalID = newSession.id
+    }
 
-    // func closePane(id: UUID, sessionManager: TerminalSessionManager) {
-    //     Removes leaf from splitRoot (collapsing parent split), destroys session
-    // }
+    func closePane(id: UUID, sessionManager: TerminalSessionManager) {
+        removeTerminal(id: id, sessionManager: sessionManager)
+    }
 
     func movePathGroup(from: IndexSet, to: Int) {
         pathGroups.move(fromOffsets: from, toOffset: to)

@@ -187,7 +187,6 @@ final class GitCLIService: GitServiceProtocol, @unchecked Sendable {
                 state.untrackedFiles.append(path)
                 state.unstagedChanges.append(GitFileChange(
                     path: path,
-                    oldPath: nil,
                     kind: .untracked
                 ))
             }
@@ -225,8 +224,8 @@ final class GitCLIService: GitServiceProtocol, @unchecked Sendable {
             let kind = statusToChangeKind(indexStatus, isRename: isRename)
             state.stagedChanges.append(GitFileChange(
                 path: filePath,
-                oldPath: oldPath,
-                kind: kind
+                kind: kind,
+                oldPath: oldPath
             ))
         }
 
@@ -235,8 +234,8 @@ final class GitCLIService: GitServiceProtocol, @unchecked Sendable {
             let kind = statusToChangeKind(workTreeStatus, isRename: false)
             state.unstagedChanges.append(GitFileChange(
                 path: filePath,
-                oldPath: oldPath,
-                kind: kind
+                kind: kind,
+                oldPath: oldPath
             ))
         }
     }
