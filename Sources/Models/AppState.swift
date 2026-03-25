@@ -1,5 +1,9 @@
 import SwiftUI
 
+enum NavigationDirection {
+    case left, right, up, down
+}
+
 @Observable
 final class AppState {
     var pathGroups: [PathGroup] = []
@@ -98,6 +102,27 @@ final class AppState {
 
     func movePathGroup(from: IndexSet, to: Int) {
         pathGroups.move(fromOffsets: from, toOffset: to)
+    }
+
+    func navigatePane(direction: NavigationDirection) {
+        guard let root = splitRoot,
+              let activeID = activeTerminalID else { return }
+
+        let allIDs = root.allTerminalIDs
+        guard allIDs.count > 1,
+              let currentIndex = allIDs.firstIndex(of: activeID) else { return }
+
+        // Simple linear navigation: left/up goes to previous, right/down goes to next
+        // allTerminalIDs returns them in tree order (left-to-right, top-to-bottom)
+        let newIndex: Int
+        switch direction {
+        case .left, .up:
+            newIndex = currentIndex > 0 ? currentIndex - 1 : allIDs.count - 1
+        case .right, .down:
+            newIndex = currentIndex < allIDs.count - 1 ? currentIndex + 1 : 0
+        }
+
+        focusTerminal(id: allIDs[newIndex])
     }
 
     // MARK: - Split Tree Helpers (no sessionManager dependency)

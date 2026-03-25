@@ -109,6 +109,48 @@ struct GhoCommands: Commands {
             }
             .keyboardShortcut(KeyboardShortcuts.closePane)
             .disabled(appState.activeTerminalID == nil)
+
+            Divider()
+
+            Button("Increase Font Size") {
+                appState.settings.terminalFontSize = min(24, appState.settings.terminalFontSize + 1)
+                sessionManager.applySettings()
+            }
+            .keyboardShortcut(KeyboardShortcuts.increaseFontSize)
+
+            Button("Decrease Font Size") {
+                appState.settings.terminalFontSize = max(10, appState.settings.terminalFontSize - 1)
+                sessionManager.applySettings()
+            }
+            .keyboardShortcut(KeyboardShortcuts.decreaseFontSize)
+
+            Button("Reset Font Size") {
+                appState.settings.terminalFontSize = 13
+                sessionManager.applySettings()
+            }
+            .keyboardShortcut(KeyboardShortcuts.resetFontSize)
+
+            Divider()
+
+            Button("Navigate Left") {
+                appState.navigatePane(direction: .left)
+            }
+            .keyboardShortcut(.leftArrow, modifiers: [.command, .option])
+
+            Button("Navigate Right") {
+                appState.navigatePane(direction: .right)
+            }
+            .keyboardShortcut(.rightArrow, modifiers: [.command, .option])
+
+            Button("Navigate Up") {
+                appState.navigatePane(direction: .up)
+            }
+            .keyboardShortcut(.upArrow, modifiers: [.command, .option])
+
+            Button("Navigate Down") {
+                appState.navigatePane(direction: .down)
+            }
+            .keyboardShortcut(.downArrow, modifiers: [.command, .option])
         }
     }
 }
