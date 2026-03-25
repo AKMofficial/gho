@@ -11,6 +11,8 @@ protocol TerminalEngineProtocol: AnyObject {
     var delegate: TerminalEngineDelegate? { get set }
     var terminalID: UUID { get }
     var isRunning: Bool { get }
+    var processStarted: Bool { get }
+    var shellPid: Int32? { get }
 
     func makeView() -> NSView
     func startProcess(shell: String, arguments: [String], environment: [String: String], workingDirectory: URL)

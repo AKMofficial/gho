@@ -24,6 +24,17 @@ final class SwiftTermEngine: NSObject, TerminalEngineProtocol {
         terminalView != nil
     }
 
+    private(set) var processStarted = false
+
+    var shellPid: Int32? {
+        guard let view = terminalView,
+              let pid = view.process?.shellPid,
+              pid > 0 else {
+            return nil
+        }
+        return pid
+    }
+
     // MARK: - Private State
 
     private var terminalView: LocalProcessTerminalView?
@@ -66,6 +77,7 @@ final class SwiftTermEngine: NSObject, TerminalEngineProtocol {
         environment: [String: String],
         workingDirectory: URL
     ) {
+        processStarted = true
         let envArray = environment.map { "\($0.key)=\($0.value)" }
         terminalView?.startProcess(
             executable: shell,

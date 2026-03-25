@@ -10,8 +10,8 @@ enum ProcessDetector {
     ]
 
     /// Detect the terminal status based on running child processes.
-    static func detectStatus(for session: TerminalSession) -> TerminalStatus {
-        guard let children = getChildProcessNames(ppid: getShellPID(for: session)) else {
+    static func detectStatus(for session: TerminalSession, using sessionManager: TerminalSessionManager) -> TerminalStatus {
+        guard let children = getChildProcessNames(ppid: sessionManager.getShellPID(for: session.id)) else {
             return session.exitCode != nil ? .error : .idle
         }
 
@@ -62,15 +62,5 @@ enum ProcessDetector {
         } catch {
             return nil
         }
-    }
-
-    /// Get the shell PID for a terminal session.
-    ///
-    /// Currently returns `nil`; will be wired to the engine's PTY child PID
-    /// once `LocalProcessTerminalView.shellPid` is exposed through the
-    /// session manager.
-    private static func getShellPID(for session: TerminalSession) -> Int32? {
-        // TODO: Wire to the terminal engine's process PID via TerminalSessionManager
-        return nil
     }
 }
