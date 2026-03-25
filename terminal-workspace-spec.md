@@ -463,7 +463,7 @@ Accessible via `Cmd+,`. Native macOS settings window with tabs:
 
 ## Current Build Status
 
-**The app compiles and builds successfully with `swift build`.** All source files are in place. The project uses pure SPM (no .xcodeproj) with SwiftTerm as the terminal engine. Run with `swift run Gho` or open `Package.swift` in Xcode.
+**The app compiles and builds successfully with `swift build`.** All source files are in place and fully wired. The project uses pure SPM (no .xcodeproj) with SwiftTerm as the terminal engine. Run with `swift run Gho` or open `Package.swift` in Xcode.
 
 ### What Has Been Built
 
@@ -471,10 +471,10 @@ Accessible via `Cmd+,`. Native macOS settings window with tabs:
 Gho/
 ├── Package.swift                                    (SPM, SwiftTerm dep, macOS 14+)
 ├── Sources/
-│   ├── GhoApp.swift                                 (@main entry, menu commands, Settings scene)
-│   ├── ContentView.swift                            (root layout: sidebar + terminal + status bar)
+│   ├── GhoApp.swift                                 (@main entry, bootstrap, persistence, git detection, FSEvents)
+│   ├── ContentView.swift                            (root layout: sidebar + terminal + status bar + command palette)
 │   ├── Models/
-│   │   ├── AppState.swift                           (@Observable, path groups, split tree, state mutations)
+│   │   ├── AppState.swift                           (@Observable, path groups, split tree, pane navigation, font size)
 │   │   ├── PathGroup.swift                          (@Observable, path + terminals + git state)
 │   │   ├── TerminalSession.swift                    (session model + TerminalStatus enum)
 │   │   ├── SplitNode.swift                          (recursive indirect enum for split pane tree)
@@ -485,36 +485,40 @@ Gho/
 │   │   ├── Protocols/
 │   │   │   ├── GitServiceProtocol.swift             (full protocol + GitDiff/DiffHunk/DiffLine types)
 │   │   │   ├── FileWatcherProtocol.swift            (watch/stop with @MainActor callback)
-│   │   │   ├── TerminalEngineProtocol.swift         (abstraction over terminal renderer + delegate)
+│   │   │   ├── TerminalEngineProtocol.swift         (abstraction + processStarted + shellPid)
 │   │   │   └── PersistenceServiceProtocol.swift     (PersistedState Codable + save/load protocol)
 │   │   ├── GitCLIService.swift                      (shells out to git CLI, parses --porcelain=v2)
 │   │   ├── FSEventsWatcher.swift                    (CoreServices FSEvents, 300ms debounce)
-│   │   ├── TerminalSessionManager.swift             (@Observable, engine lifecycle, delegate routing)
+│   │   ├── TerminalSessionManager.swift             (@Observable, engine lifecycle, delegate routing, shell PID access)
 │   │   └── JSONPersistenceService.swift             (JSON to ~/Library/Application Support/Gho/)
 │   ├── Terminal/
-│   │   ├── SwiftTermEngine.swift                    (TerminalEngineProtocol impl using SwiftTerm)
+│   │   ├── SwiftTermEngine.swift                    (TerminalEngineProtocol impl, processStarted flag, shellPid)
 │   │   └── SwiftTermNSViewWrapper.swift             (NSViewRepresentable bridge for SwiftUI)
 │   ├── Views/
 │   │   ├── Sidebar/
 │   │   │   ├── SidebarView.swift                    (path group list, Add Path with NSOpenPanel)
 │   │   │   ├── PathGroupRow.swift                   (collapsible group, context menu, rename)
 │   │   │   ├── TerminalRow.swift                    (status dot, click focus, context menu)
-│   │   │   └── GitSectionView.swift                 (branch, counts, quick actions, changes toggle)
+│   │   │   └── GitSectionView.swift                 (branch, counts, push/pull/stash/commit actions)
 │   │   ├── Terminal/
-│   │   │   ├── TerminalAreaView.swift               (renders SplitNode tree or empty state)
-│   │   │   ├── TerminalPaneView.swift               (single pane with active border)
-│   │   │   └── SplitContainerView.swift             (recursive splits with draggable dividers)
+│   │   │   ├── TerminalAreaView.swift               (renders SplitNode tree, tab bar, keyboard tab switching)
+│   │   │   ├── TerminalPaneView.swift               (single pane, active border, starts shell on appear)
+│   │   │   ├── SplitContainerView.swift             (recursive splits with draggable dividers)
+│   │   │   └── TabBarView.swift                     (tab bar for multi-terminal single-pane mode)
 │   │   ├── Git/
 │   │   │   ├── BranchPickerView.swift               (popover, search, create new branch)
 │   │   │   ├── ChangesListView.swift                (staged/unstaged files, stage/unstage/discard)
 │   │   │   ├── DiffView.swift                       (unified diff with line numbers + colors)
-│   │   │   └── PRFormView.swift                     (PR form via gh CLI)
+│   │   │   ├── PRFormView.swift                     (PR form via gh CLI)
+│   │   │   ├── CommitView.swift                     (commit message popover with stage-all option)
+│   │   │   └── StashListView.swift                  (stash list with create/pop actions)
+│   │   ├── SettingsView.swift                       (4-tab settings: General, Appearance, Git, Keyboard)
 │   │   ├── StatusBarView.swift                      (24px bar: path, branch, counts)
-│   │   └── CommandPaletteView.swift                 (Cmd+K overlay with fuzzy search)
+│   │   └── CommandPaletteView.swift                 (Cmd+K overlay, fuzzy search, wired actions)
 │   └── Utilities/
 │       ├── PathFormatter.swift                      (URL extension: ~/... abbreviation)
-│       ├── KeyboardShortcuts.swift                  (shortcut defs + GhoCommands for menu bar)
-│       └── ProcessDetector.swift                    (detect AI agents via child process names)
+│       ├── KeyboardShortcuts.swift                  (shortcut defs + GhoCommands + font size + pane nav)
+│       └── ProcessDetector.swift                    (detect AI agents via real shell PIDs)
 ```
 
 ### Architecture Decisions Made
@@ -535,67 +539,55 @@ Gho/
 - **Bindable state**: `@Bindable var state = appState` for two-way bindings
 - **Terminal abstraction**: `SwiftTermEngine` is the only file importing SwiftTerm — swap to libghostty by creating a new `TerminalEngineProtocol` conformer
 - **Git service**: `GitCLIService` conforms to `GitServiceProtocol` — all methods are `async throws`
+- **Bootstrap pattern**: `GhoApp.bootstrapApp()` runs on `.onAppear` — inits session manager, loads persisted state, detects git repos, starts FSEvents watchers
 
 ---
 
+## What Has Been Wired (Completed)
+
+### Phase 1 — Wiring & Runtime Fixes (DONE)
+
+1. **Core app wiring** — `GhoApp.swift` bootstraps `TerminalSessionManager(appState:)` and `GitCLIService`, injects both into SwiftUI environment. `ContentView.swift` renders real `SidebarView`, `TerminalAreaView`, `StatusBarView`, and `CommandPaletteView` (all placeholders replaced). `GhoCommands` provides all menu bar shortcuts.
+
+2. **FSEventsWatcher wired to git auto-refresh** — On path add, `GhoApp.detectGitAndWatch()` checks if path is a git repo, fetches initial status, and sets up FSEventsWatcher on the `.git` directory. Respects `settings.gitRefreshInterval` (0 = manual only).
+
+3. **Git quick actions wired** — Push/Pull buttons in `GitSectionView` call `GitCLIService` with loading/error state. Commit button opens `CommitView` popover. Stash button opens `StashListView` popover.
+
+4. **Persistence wired** — On launch: loads settings from UserDefaults, restores persisted state (path groups, terminals, split layout) from `~/Library/Application Support/Gho/state.json`. On quit (`willTerminateNotification`): saves state and settings.
+
+5. **Git repo detection on path add** — `GhoApp.detectGitAndWatch()` runs for each path group, checks `isGitRepository`, fetches status, populates `group.gitState`.
+
+6. **Terminal process start** — `TerminalPaneView.onAppear` calls `sessionManager.startProcess(for: terminalID)`. Double-start prevented by `processStarted` flag on `SwiftTermEngine`.
+
+### Phase 2 — Features (DONE)
+
+1. **Cmd+Option+Arrow** pane navigation — `AppState.navigatePane(direction:)` walks split tree, wired via `GhoCommands` menu items.
+2. **Tab bar** — `TabBarView` shows when active path group has >1 terminal in single-pane mode. Status dots, close buttons, [+] to add terminal.
+3. **Cmd+1-9** tab switching — handled via `onKeyPress` in `TerminalAreaView`.
+4. **Cmd+Shift+]/[** next/previous tab — wired in `TerminalAreaView` key handler.
+5. **Font size shortcuts** — Cmd+Plus/Minus/0 adjust `settings.terminalFontSize` and call `sessionManager.applySettings()`.
+6. **Commit UI** — `CommitView` popover with message field, staged count, stage-all toggle.
+7. **Stash list** — `StashListView` popover with create/pop actions.
+8. **Process detection** — `ProcessDetector` wired to real shell PIDs via `SwiftTermEngine.shellPid` and `TerminalSessionManager.getShellPID(for:)`. Detects AI agents (claude, opencode, aider, etc.).
+9. **Command palette actions** — Add Path opens NSOpenPanel, Switch Branch navigates to sidebar, Push calls git push.
+10. **Settings view** — 4-tab `SettingsView` (General, Appearance, Git, Keyboard) wired to `AppSettings` and referenced from Settings scene.
+
 ## What Needs To Be Done Next
 
-### Phase 1 — Wiring & Runtime Fixes (CRITICAL — do this first)
+### Phase 3 — Runtime Testing & Polish
 
-The code compiles but has not been runtime-tested. Many components are built but not wired together. Launch the app (`swift run Gho` or Xcode Run) and fix runtime issues.
+The app has not been runtime-tested. Launch with `swift run Gho` or Xcode and fix any runtime issues.
 
-1. **Wire FSEventsWatcher to git status auto-refresh**
-   - In `GhoApp.swift` or `AppState`, when a path group is added, start watching its `.git` directory
-   - On change callback: call `gitService.getStatus()` and update `pathGroup.gitState`
-   - Respect `settings.gitRefreshInterval` (0 = manual only)
-
-2. **Wire git quick actions in GitSectionView**
-   - The Push/Pull/Stash buttons in `GitSectionView.swift` have empty action closures
-   - Connect them to `GitCLIService` methods
-   - Add commit action (Cmd+Enter → commit message input → `gitService.commit()`)
-
-3. **Wire persistence (save/restore on quit/launch)**
-   - In `GhoApp.swift`, load state on init using `JSONPersistenceService.load()`
-   - Save state on `NSApplication.willTerminateNotification`
-   - Restore path groups, terminals, and split layout
-
-4. **Wire git repo detection on path add**
-   - When a path group is added, check `gitService.isGitRepository(at:)`
-   - If true, fetch initial `gitState` and set `pathGroup.gitState`
-   - Start file watcher for that path
-
-5. **Fix TerminalSessionManager process start**
-   - `createSession()` creates the engine but `startProcess()` needs to be called after the view is created
-   - Ensure the shell actually starts when a terminal pane appears
-   - Wire `startProcess(for:)` to view lifecycle (e.g., in `TerminalPaneView.onAppear`)
-
-6. **Test and fix the full terminal flow**
-   - Add path → terminal created → shell starts → can type commands
-   - Split right/down → second terminal works
-   - Close pane → terminal destroyed properly
-   - Remove path group → all terminals destroyed
-
-### Phase 2 — Missing Features
-
-1. **Cmd+Option+Arrow** navigation between split panes — not implemented yet
-2. **Tab bar** for multiple terminals in non-split mode (optional, spec calls for it)
-3. **Cmd+1-9** to switch terminal tabs
-4. **Cmd+Shift+Enter** maximize/restore pane toggle — wired in menu but verify runtime
+1. **Test the full terminal flow** — Add path → terminal created → shell starts → can type commands → split right/down → close pane → remove path group
+2. **Animations**: smooth sidebar collapse/expand, split pane resize
+3. **Error handling**: show user-facing alerts for git errors, process failures
+4. **Cmd+Shift+Enter** maximize/restore pane toggle — wired in menu, verify runtime
 5. **Cmd+F** find in terminal scrollback — `search()` in engine returns 0 (stub)
-6. **Terminal font size shortcuts** — Cmd+Plus/Minus/0 need to be wired to `TerminalSessionManager.applySettings()`
-7. **Drag terminals between path groups** — not implemented
-8. **Commit UI** — no commit message input exists; add a commit popover/sheet
-9. **Stash list dropdown** — stash button exists but no list UI
-10. **URL clicking** in terminal (Cmd+click to open) — not implemented
-
-### Phase 3 — Polish & Quality
-
-1. **Animations**: smooth sidebar collapse/expand, split pane resize
-2. **Error handling**: show user-facing alerts for git errors, process failures
-3. **Process detection**: wire `ProcessDetector` to actual shell PIDs (currently returns nil)
-4. **Window state restoration**: use `NSWindow` state restoration API
-5. **Settings apply live**: when user changes font/theme in Settings, apply to all terminals immediately
-6. **Edge cases**: disconnected git remotes, large repos, binary files in diff, empty repos
+6. **Drag terminals between path groups** — not implemented
+7. **URL clicking** in terminal (Cmd+click to open) — not implemented
+8. **Window state restoration**: use `NSWindow` state restoration API
+9. **Settings apply live**: when user changes font/theme in Settings, apply to all terminals immediately
+10. **Edge cases**: disconnected git remotes, large repos, binary files in diff, empty repos
 
 ### Phase 4 — libghostty Migration (Optional, for maximum performance)
 
