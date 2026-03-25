@@ -1,57 +1,110 @@
 import SwiftUI
 
-// NOTE: TerminalSessionManager is defined in Unit 3, GitCLIService in Unit 4.
-// This file references them by type name but the app won't compile until all units merge.
-
 @main
 struct GhoApp: App {
     @State private var appState = AppState()
-    // Concrete types provided by other units:
-    // @State private var sessionManager = TerminalSessionManager()
-    // @State private var gitService: any GitServiceProtocol = GitCLIService()
+    @State private var sessionManager: TerminalSessionManager?
+
+    private let gitService = GitCLIService()
+    private let fileWatcher = FSEventsWatcher()
+    private let persistenceService = JSONPersistenceService()
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .environment(appState)
+            Group {
+                if let sessionManager {
+                    ContentView()
+                        .environment(appState)
+                        .environment(sessionManager)
+                } else {
+                    Color.clear
+                }
+            }
+            .onAppear {
+                bootstrapApp()
+            }
+            .onReceive(
+                NotificationCenter.default.publisher(
+                    for: NSApplication.willTerminateNotification
+                )
+            ) { _ in
+                saveState()
+            }
         }
         .commands {
-            CommandGroup(after: .newItem) {
-                Button("Add Path...") {
-                    // Cmd+Shift+O: add path
-                }
-                .keyboardShortcut("o", modifiers: [.command, .shift])
-
-                Button("New Terminal") {
-                    // Cmd+T: new terminal
-                }
-                .keyboardShortcut("t", modifiers: .command)
-
-                Button("Split Right") {
-                    // Cmd+D: split right
-                }
-                .keyboardShortcut("d", modifiers: .command)
-
-                Button("Split Down") {
-                    // Cmd+Shift+D: split down
-                }
-                .keyboardShortcut("d", modifiers: [.command, .shift])
-
-                Button("Close Pane") {
-                    // Cmd+W: close pane
-                }
-                .keyboardShortcut("w", modifiers: .command)
-
-                Button("Command Palette") {
-                    appState.isCommandPaletteVisible.toggle()
-                }
-                .keyboardShortcut("k", modifiers: .command)
+            if let sessionManager {
+                GhoCommands(appState: appState, sessionManager: sessionManager)
             }
         }
 
         Settings {
-            Text("Settings will be provided by Unit 5")
-                .frame(width: 400, height: 300)
+            SettingsView()
+                .environment(appState)
+        }
+    }
+
+    // MARK: - Bootstrap
+
+    private func bootstrapApp() {
+        let sm = TerminalSessionManager(appState: appState)
+        sessionManager = sm
+
+        if let settings = try? persistenceService.loadSettings() {
+            appState.settings = settings
+        }
+
+        if appState.settings.restoreSessionsOnLaunch,
+           let persisted = try? persistenceService.load() {
+            JSONPersistenceService.restoreAppState(
+                from: persisted,
+                into: appState,
+                sessionManager: sm
+            )
+        }
+
+        for group in appState.pathGroups {
+            detectGitAndWatch(group: group)
+        }
+    }
+
+    // MARK: - Persistence
+
+    private func saveState() {
+        let state = JSONPersistenceService.persistedState(from: appState)
+        try? persistenceService.save(state: state)
+        try? persistenceService.saveSettings(appState.settings)
+        fileWatcher.stopAll()
+    }
+
+    // MARK: - Git Integration
+
+    private func detectGitAndWatch(group: PathGroup) {
+        let gitService = self.gitService
+        let fileWatcher = self.fileWatcher
+        let refreshInterval = appState.settings.gitRefreshInterval
+
+        Task {
+            guard await gitService.isGitRepository(at: group.path) else { return }
+
+            if let status = try? await gitService.getStatus(at: group.path) {
+                await MainActor.run {
+                    group.gitState = status
+                }
+            }
+
+            guard refreshInterval > 0 else { return }
+
+            await MainActor.run {
+                fileWatcher.watch(directory: group.path) {
+                    Task {
+                        if let newStatus = try? await gitService.getStatus(
+                            at: group.path
+                        ) {
+                            group.gitState = newStatus
+                        }
+                    }
+                }
+            }
         }
     }
 }
