@@ -461,162 +461,165 @@ Accessible via `Cmd+,`. Native macOS settings window with tabs:
 
 ---
 
-## AI Build Instructions
+## Current Build Status
 
-This section tells the AI how to build this project step by step.
+**The app compiles and builds successfully with `swift build`.** All source files are in place. The project uses pure SPM (no .xcodeproj) with SwiftTerm as the terminal engine. Run with `swift run Gho` or open `Package.swift` in Xcode.
 
-### Phase 1 — Project Skeleton + Single Terminal (Day 1)
-
-**Goal:** A macOS app with a window that shows a working terminal using libghostty.
-
-1. Create a new Xcode project (macOS App, SwiftUI lifecycle)
-2. Set up the project with Swift Package Manager
-3. Integrate libghostty as a C library dependency
-   - Reference: https://github.com/ghostty-org/ghostty (libghostty)
-   - Reference: https://github.com/ghostty-org/ghostling (minimal example)
-   - Reference: https://github.com/yuuichieguchi/Calyx (full macOS app using libghostty)
-4. Create a `TerminalView` that wraps libghostty's Metal surface in an `NSViewRepresentable`
-5. Set up PTY (pseudo-terminal) to spawn the user's default shell
-6. Wire keyboard input → PTY input, PTY output → libghostty → Metal render
-7. Result: a window with one functional terminal that can run commands
-
-**Key files to create:**
+### What Has Been Built
 
 ```
-TerminalWorkspace/
-├── TerminalWorkspaceApp.swift          (app entry point)
-├── Models/
-│   ├── PathGroup.swift                 (data model)
-│   ├── TerminalSession.swift           (data model)
-│   └── AppState.swift                  (observable app state)
-├── Views/
-│   ├── ContentView.swift               (main layout: sidebar + terminal area)
-│   ├── Sidebar/
-│   │   ├── SidebarView.swift           (full sidebar)
-│   │   ├── PathGroupView.swift         (one path group)
-│   │   ├── TerminalRowView.swift       (one terminal row)
-│   │   └── GitStatusView.swift         (git section in a group)
+Gho/
+├── Package.swift                                    (SPM, SwiftTerm dep, macOS 14+)
+├── Sources/
+│   ├── GhoApp.swift                                 (@main entry, menu commands, Settings scene)
+│   ├── ContentView.swift                            (root layout: sidebar + terminal + status bar)
+│   ├── Models/
+│   │   ├── AppState.swift                           (@Observable, path groups, split tree, state mutations)
+│   │   ├── PathGroup.swift                          (@Observable, path + terminals + git state)
+│   │   ├── TerminalSession.swift                    (session model + TerminalStatus enum)
+│   │   ├── SplitNode.swift                          (recursive indirect enum for split pane tree)
+│   │   ├── GitState.swift                           (@Observable, branch/staged/unstaged/ahead/behind)
+│   │   ├── GitFileChange.swift                      (file change struct + GitChangeKind enum)
+│   │   └── Settings.swift                           (AppSettings with all preferences)
+│   ├── Services/
+│   │   ├── Protocols/
+│   │   │   ├── GitServiceProtocol.swift             (full protocol + GitDiff/DiffHunk/DiffLine types)
+│   │   │   ├── FileWatcherProtocol.swift            (watch/stop with @MainActor callback)
+│   │   │   ├── TerminalEngineProtocol.swift         (abstraction over terminal renderer + delegate)
+│   │   │   └── PersistenceServiceProtocol.swift     (PersistedState Codable + save/load protocol)
+│   │   ├── GitCLIService.swift                      (shells out to git CLI, parses --porcelain=v2)
+│   │   ├── FSEventsWatcher.swift                    (CoreServices FSEvents, 300ms debounce)
+│   │   ├── TerminalSessionManager.swift             (@Observable, engine lifecycle, delegate routing)
+│   │   └── JSONPersistenceService.swift             (JSON to ~/Library/Application Support/Gho/)
 │   ├── Terminal/
-│   │   ├── TerminalContainerView.swift (manages splits/tabs)
-│   │   ├── TerminalView.swift          (wraps libghostty NSView)
-│   │   └── SplitPaneView.swift         (recursive split layout)
-│   ├── Git/
-│   │   ├── BranchPickerView.swift      (branch selection popover)
-│   │   ├── ChangesListView.swift       (staged/unstaged file list)
-│   │   ├── DiffView.swift              (file diff display)
-│   │   └── PRFormView.swift            (create pull request form)
-│   ├── StatusBarView.swift             (bottom status bar)
-│   ├── CommandPaletteView.swift        (Cmd+K palette)
-│   └── SettingsView.swift              (preferences window)
-├── Services/
-│   ├── TerminalSessionManager.swift    (create/destroy terminal sessions)
-│   ├── GitService.swift                (all git operations via libgit2)
-│   ├── FileWatcherService.swift        (FSEvents watcher for git changes)
-│   └── PersistenceService.swift        (save/restore app state)
-├── Helpers/
-│   ├── KeyboardShortcuts.swift         (shortcut definitions)
-│   └── PathFormatter.swift             (~/... path abbreviation)
-└── Bridge/
-    └── LibGhostty.swift                (Swift wrapper around C-ABI)
+│   │   ├── SwiftTermEngine.swift                    (TerminalEngineProtocol impl using SwiftTerm)
+│   │   └── SwiftTermNSViewWrapper.swift             (NSViewRepresentable bridge for SwiftUI)
+│   ├── Views/
+│   │   ├── Sidebar/
+│   │   │   ├── SidebarView.swift                    (path group list, Add Path with NSOpenPanel)
+│   │   │   ├── PathGroupRow.swift                   (collapsible group, context menu, rename)
+│   │   │   ├── TerminalRow.swift                    (status dot, click focus, context menu)
+│   │   │   └── GitSectionView.swift                 (branch, counts, quick actions, changes toggle)
+│   │   ├── Terminal/
+│   │   │   ├── TerminalAreaView.swift               (renders SplitNode tree or empty state)
+│   │   │   ├── TerminalPaneView.swift               (single pane with active border)
+│   │   │   └── SplitContainerView.swift             (recursive splits with draggable dividers)
+│   │   ├── Git/
+│   │   │   ├── BranchPickerView.swift               (popover, search, create new branch)
+│   │   │   ├── ChangesListView.swift                (staged/unstaged files, stage/unstage/discard)
+│   │   │   ├── DiffView.swift                       (unified diff with line numbers + colors)
+│   │   │   └── PRFormView.swift                     (PR form via gh CLI)
+│   │   ├── StatusBarView.swift                      (24px bar: path, branch, counts)
+│   │   └── CommandPaletteView.swift                 (Cmd+K overlay with fuzzy search)
+│   └── Utilities/
+│       ├── PathFormatter.swift                      (URL extension: ~/... abbreviation)
+│       ├── KeyboardShortcuts.swift                  (shortcut defs + GhoCommands for menu bar)
+│       └── ProcessDetector.swift                    (detect AI agents via child process names)
 ```
 
-### Phase 2 — Sidebar + Path Groups (Day 2)
+### Architecture Decisions Made
 
-**Goal:** Sidebar with path groups, add/remove paths, multiple terminals per group.
+| Decision | Choice | Notes |
+|----------|--------|-------|
+| Build system | Pure SPM (`Package.swift`) | No .xcodeproj — open Package.swift in Xcode |
+| Terminal engine | SwiftTerm via `TerminalEngineProtocol` | Abstracted behind protocol for future libghostty swap |
+| Git operations | `git` CLI via `Process()` | Parses `git status --porcelain=v2 --branch` |
+| File watching | FSEvents via CoreServices | Watches .git dirs with 300ms debounce |
+| State management | Single `@Observable AppState` | Injected via SwiftUI `.environment()` |
+| Split panes | Recursive `SplitNode` indirect enum | Value type, immutable mutations |
+| Persistence | JSON to ~/Library/Application Support/Gho/ | Settings via UserDefaults |
 
-1. Implement `AppState` as `@Observable` class holding array of `PathGroup`
-2. Build `SidebarView` with `List` in `.sidebar` style
-3. Implement "Add Path" button → `NSOpenPanel` folder picker
-4. Each `PathGroup` shows its terminals as child rows
-5. Implement [+] button per group → creates new `TerminalSession` in that directory
-6. Click terminal row → sets it as active in the terminal area
-7. Implement right-click context menus on paths and terminals
-8. Wire up `Cmd+Shift+O` (add path) and `Cmd+T` (new terminal)
+### Key Patterns
 
-### Phase 3 — Split Panes (Day 3)
-
-**Goal:** Side-by-side and vertical terminal splits.
-
-1. Build `SplitPaneView` as a recursive structure (each split has two children, which can be terminals or further splits)
-2. Implement draggable dividers using `GeometryReader` + gesture recognizers
-3. Wire `Cmd+D` (split right) and `Cmd+Shift+D` (split down)
-4. Implement `Cmd+Option+Arrow` navigation between panes
-5. Active pane highlight (subtle border)
-6. `Cmd+W` to close pane, collapsing the split
-7. `Cmd+Shift+Enter` to maximize/restore
-
-### Phase 4 — Git Integration (Day 4-5)
-
-**Goal:** Full git status, staging, branching, push/PR in the sidebar.
-
-1. Integrate libgit2 (via SwiftGit2 or direct C bindings)
-2. Implement `GitService` with methods:
-   - `getStatus(path:)` → staged, unstaged, untracked file lists
-   - `getDiff(path:file:staged:)` → diff content for a file
-   - `getBranches(path:)` → local branch list
-   - `switchBranch(path:branch:)` → checkout branch
-   - `stageFile(path:file:)` / `unstageFile(path:file:)`
-   - `stageAll(path:)` / `unstageAll(path:)`
-   - `commit(path:message:)` → create commit
-   - `push(path:)` → push to remote
-   - `pull(path:)` → pull from remote
-3. Implement `FileWatcherService` watching `.git` directories for changes → auto-refresh status
-4. Build `GitStatusView` in sidebar showing branch + counts
-5. Build `ChangesListView` as expandable section with file list
-6. Build `DiffView` as a popover/sheet showing syntax-highlighted diffs
-7. Build `BranchPickerView` as a popover with search
-8. Implement quick action buttons: Push, Pull, PR, Stash
-9. PR creation: shell out to `gh pr create` via Process()
-
-### Phase 5 — Polish + UX (Day 6-7)
-
-**Goal:** Status bar, command palette, settings, session persistence, and polish.
-
-1. Build `StatusBarView` at bottom of window
-2. Build `CommandPaletteView` (Cmd+K) with fuzzy search
-3. Build `SettingsView` with tabs (General, Appearance, Git, Keyboard)
-4. Implement `PersistenceService`:
-   - Save state to JSON on quit (`applicationWillTerminate`)
-   - Restore state on launch
-   - Save terminal scrollback (optional, can be large)
-5. Implement drag-to-reorder in sidebar (path groups and terminals)
-6. Implement terminal rename (double-click label)
-7. Process status detection (idle/running/error/AI agent)
-8. Window restoration (NSWindow state restoration)
-9. URL clicking in terminal (Cmd+click to open)
-10. Find in terminal scrollback (Cmd+F)
-
-### Phase 6 — Refinement (Week 2)
-
-1. Animations: smooth sidebar collapse/expand, pane resize
-2. Performance: profile with Instruments, optimize git polling frequency
-3. Edge cases: handle disconnected git remotes, large repos, binary files in diff
-4. Accessibility: VoiceOver support for sidebar
-5. Notarization: sign and notarize for distribution
-6. Auto-update mechanism (Sparkle framework)
+- **Environment injection**: `@Environment(AppState.self)`, `@Environment(TerminalSessionManager.self)`
+- **Bindable state**: `@Bindable var state = appState` for two-way bindings
+- **Terminal abstraction**: `SwiftTermEngine` is the only file importing SwiftTerm — swap to libghostty by creating a new `TerminalEngineProtocol` conformer
+- **Git service**: `GitCLIService` conforms to `GitServiceProtocol` — all methods are `async throws`
 
 ---
 
-## Reference Projects for AI
+## What Needs To Be Done Next
 
-When building, the AI should study these codebases for patterns:
+### Phase 1 — Wiring & Runtime Fixes (CRITICAL — do this first)
 
-1. **Calyx** — https://github.com/yuuichieguchi/Calyx
-   - How to integrate libghostty in a Swift/macOS app
-   - How to build a git source control sidebar
-   - How to manage terminal sessions with libghostty
+The code compiles but has not been runtime-tested. Many components are built but not wired together. Launch the app (`swift run Gho` or Xcode Run) and fix runtime issues.
 
-2. **Ghostling** — https://github.com/ghostty-org/ghostling
-   - Minimal example of using libghostty's C-ABI
-   - Terminal rendering pipeline basics
+1. **Wire FSEventsWatcher to git status auto-refresh**
+   - In `GhoApp.swift` or `AppState`, when a path group is added, start watching its `.git` directory
+   - On change callback: call `gitService.getStatus()` and update `pathGroup.gitState`
+   - Respect `settings.gitRefreshInterval` (0 = manual only)
 
-3. **cmux** — https://github.com/manaflow-ai/cmux
-   - Workspace management for AI terminal sessions
-   - Process detection (identifying AI agents)
+2. **Wire git quick actions in GitSectionView**
+   - The Push/Pull/Stash buttons in `GitSectionView.swift` have empty action closures
+   - Connect them to `GitCLIService` methods
+   - Add commit action (Cmd+Enter → commit message input → `gitService.commit()`)
 
-4. **Ghostty** — https://github.com/ghostty-org/ghostty
-   - libghostty API documentation and headers
-   - Terminal configuration options
+3. **Wire persistence (save/restore on quit/launch)**
+   - In `GhoApp.swift`, load state on init using `JSONPersistenceService.load()`
+   - Save state on `NSApplication.willTerminateNotification`
+   - Restore path groups, terminals, and split layout
+
+4. **Wire git repo detection on path add**
+   - When a path group is added, check `gitService.isGitRepository(at:)`
+   - If true, fetch initial `gitState` and set `pathGroup.gitState`
+   - Start file watcher for that path
+
+5. **Fix TerminalSessionManager process start**
+   - `createSession()` creates the engine but `startProcess()` needs to be called after the view is created
+   - Ensure the shell actually starts when a terminal pane appears
+   - Wire `startProcess(for:)` to view lifecycle (e.g., in `TerminalPaneView.onAppear`)
+
+6. **Test and fix the full terminal flow**
+   - Add path → terminal created → shell starts → can type commands
+   - Split right/down → second terminal works
+   - Close pane → terminal destroyed properly
+   - Remove path group → all terminals destroyed
+
+### Phase 2 — Missing Features
+
+1. **Cmd+Option+Arrow** navigation between split panes — not implemented yet
+2. **Tab bar** for multiple terminals in non-split mode (optional, spec calls for it)
+3. **Cmd+1-9** to switch terminal tabs
+4. **Cmd+Shift+Enter** maximize/restore pane toggle — wired in menu but verify runtime
+5. **Cmd+F** find in terminal scrollback — `search()` in engine returns 0 (stub)
+6. **Terminal font size shortcuts** — Cmd+Plus/Minus/0 need to be wired to `TerminalSessionManager.applySettings()`
+7. **Drag terminals between path groups** — not implemented
+8. **Commit UI** — no commit message input exists; add a commit popover/sheet
+9. **Stash list dropdown** — stash button exists but no list UI
+10. **URL clicking** in terminal (Cmd+click to open) — not implemented
+
+### Phase 3 — Polish & Quality
+
+1. **Animations**: smooth sidebar collapse/expand, split pane resize
+2. **Error handling**: show user-facing alerts for git errors, process failures
+3. **Process detection**: wire `ProcessDetector` to actual shell PIDs (currently returns nil)
+4. **Window state restoration**: use `NSWindow` state restoration API
+5. **Settings apply live**: when user changes font/theme in Settings, apply to all terminals immediately
+6. **Edge cases**: disconnected git remotes, large repos, binary files in diff, empty repos
+
+### Phase 4 — libghostty Migration (Optional, for maximum performance)
+
+Replace SwiftTerm with libghostty for Metal GPU-accelerated rendering:
+
+1. Build libghostty xcframework: `zig build -Demit-xcframework=true -Dxcframework-target=native`
+2. Create module map and headers
+3. Implement `GhosttyEngine: TerminalEngineProtocol`
+4. Swap the factory in `TerminalSessionManager` from `SwiftTermEngine` to `GhosttyEngine`
+5. No other files need to change (protocol abstraction)
+
+Reference projects:
+- **Calyx** — https://github.com/yuuichieguchi/Calyx (full macOS app using libghostty)
+- **Ghostling** — https://github.com/ghostty-org/ghostling (minimal libghostty example)
+- **cmux** — https://github.com/manaflow-ai/cmux (workspace management)
+- **Ghostty** — https://github.com/ghostty-org/ghostty (libghostty source + API docs)
+
+### Phase 5 — Distribution
+
+1. Convert to Xcode project for app icon, entitlements, code signing
+2. Accessibility: VoiceOver support for sidebar and terminal
+3. Performance profiling with Instruments
+4. Notarization for distribution
+5. Auto-update mechanism (Sparkle framework)
 
 ---
 
