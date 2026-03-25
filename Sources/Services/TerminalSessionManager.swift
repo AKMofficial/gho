@@ -63,7 +63,8 @@ final class TerminalSessionManager: TerminalEngineDelegate {
     /// Must be called **after** the view has been created via ``makeView()``
     /// so that the underlying `LocalProcessTerminalView` exists.
     func startProcess(for sessionID: UUID) {
-        guard let engine = engines[sessionID] else { return }
+        guard let engine = engines[sessionID],
+              !engine.processStarted else { return }
 
         let settings = appState.settings
 
@@ -88,6 +89,11 @@ final class TerminalSessionManager: TerminalEngineDelegate {
             environment: env,
             workingDirectory: workDir
         )
+    }
+
+    /// Look up the shell PID for a terminal session.
+    func getShellPID(for sessionID: UUID) -> Int32? {
+        engines[sessionID]?.shellPid
     }
 
     /// Retrieve the engine for a given terminal ID.
@@ -156,7 +162,7 @@ final class TerminalSessionManager: TerminalEngineDelegate {
 
         if let session = findSession(id: id) {
             Task { @MainActor in
-                let newStatus = ProcessDetector.detectStatus(for: session)
+                let newStatus = ProcessDetector.detectStatus(for: session, using: self)
                 if session.status != newStatus {
                     session.status = newStatus
                 }

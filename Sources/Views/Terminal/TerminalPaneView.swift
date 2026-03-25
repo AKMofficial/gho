@@ -35,6 +35,9 @@ struct TerminalPaneView: View {
                 }
             }
         }
+        .onAppear {
+            sessionManager.startProcess(for: terminalID)
+        }
         .border(
             isActive ? Color.accentColor.opacity(0.5) : Color.clear,
             width: 1
