@@ -5,6 +5,11 @@ struct GitSectionView: View {
     let group: PathGroup
     @State private var showChanges = false
     @State private var showBranchPicker = false
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+    @State private var showCommit = false
+    @State private var showStash = false
+    private let gitService = GitCLIService()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -55,13 +60,52 @@ struct GitSectionView: View {
             .font(.caption)
 
             HStack(spacing: 4) {
-                quickActionButton("Push \u{2191}", systemImage: "arrow.up", action: { /* git push */ })
-                quickActionButton("Pull \u{2193}", systemImage: "arrow.down", action: { /* git pull */ })
-                quickActionButton("Stash", systemImage: "tray.and.arrow.down", action: { /* git stash */ })
+                quickActionButton("Push \u{2191}", systemImage: "arrow.up") {
+                    runGitAction { try await gitService.push(at: group.path) }
+                }
+                quickActionButton("Pull \u{2193}", systemImage: "arrow.down") {
+                    runGitAction { try await gitService.pull(at: group.path) }
+                }
+                quickActionButton("Stash", systemImage: "tray.and.arrow.down") {
+                    showStash = true
+                }
+                quickActionButton("Commit", systemImage: "checkmark.circle") {
+                    showCommit = true
+                }
             }
             .font(.caption2)
+            .disabled(isLoading)
+            .overlay {
+                if isLoading {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            }
+            .popover(isPresented: $showCommit) {
+                CommitView(repoPath: group.path, gitState: gitState)
+            }
+            .popover(isPresented: $showStash) {
+                StashListView(repoPath: group.path)
+            }
+            .alert("Git Error", isPresented: .init(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
+                Button("OK") { errorMessage = nil }
+            } message: {
+                Text(errorMessage ?? "")
+            }
         }
         .padding(.leading, 4)
+    }
+
+    private func runGitAction(_ operation: @escaping () async throws -> Void) {
+        Task {
+            isLoading = true
+            defer { isLoading = false }
+            do {
+                try await operation()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
     }
 
     private func quickActionButton(_ title: String, systemImage: String, action: @escaping () -> Void) -> some View {
